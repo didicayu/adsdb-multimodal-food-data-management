@@ -7,6 +7,7 @@ storage:
         formatted_zone: 'formatted-zone'
         trusted_zone: 'trusted-zone'
         exploitation_zone: 'exploitation-zone'
+        fine_tuning_zone: 'fine-tuning-zone'
 
     prefixes:
         temporal_landing: 'temporal_landing'
@@ -17,6 +18,7 @@ storage:
         trusted_images: 'images'
         trusted_documents: 'documents'
         trusted_reports: 'reports'
+        fine_tuning_datasets: 'datasets'
 
 # Pipeline behavior
 pipeline:
@@ -119,6 +121,7 @@ transfer:
     use_threads: true
 
 # Testing limits (can be overridden)
+# Increase these values to download more data for fine-tuning
 testing:
-    max_recipes: 1000
-    max_processed: 50
+    max_recipes: 5000      # Max recipes to scan from layer2.json
+    max_processed: 500     # Max images to actually download (increase for more data)

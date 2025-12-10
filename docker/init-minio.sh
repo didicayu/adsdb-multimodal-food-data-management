@@ -28,23 +28,27 @@ create_if_missing "landing-zone"
 create_if_missing "formatted-zone"
 create_if_missing "trusted-zone"
 create_if_missing "exploitation-zone"
+create_if_missing "fine-tuning-zone"
 
 echo ">> Enable versioning (idempotent)"
 mc version enable "${ALIAS}/landing-zone" || true
 mc version enable "${ALIAS}/formatted-zone" || true
 mc version enable "${ALIAS}/trusted-zone" || true
 mc version enable "${ALIAS}/exploitation-zone" || true
+mc version enable "${ALIAS}/fine-tuning-zone" || true
 
 echo ">> Set anonymous access to private (idempotent)"
 mc anonymous set private "${ALIAS}/landing-zone" || true
 mc anonymous set private "${ALIAS}/formatted-zone" || true
 mc anonymous set private "${ALIAS}/trusted-zone" || true
 mc anonymous set private "${ALIAS}/exploitation-zone" || true
+mc anonymous set private "${ALIAS}/fine-tuning-zone" || true
 
 echo ">> List buckets (recursive) — won't fail the script if empty"
 mc ls --recursive "${ALIAS}/landing-zone" || true
 mc ls --recursive "${ALIAS}/formatted-zone" || true
 mc ls --recursive "${ALIAS}/trusted-zone" || true
 mc ls --recursive "${ALIAS}/exploitation-zone" || true
+mc ls --recursive "${ALIAS}/fine-tuning-zone" || true
 
 echo ">> Init OK"

@@ -1,0 +1,243 @@
+# ============================================================================
+# AUGMENTATION CONFIGURATION
+# Adjust these parameters to control image and text augmentation behavior
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# IMAGE AUGMENTATION
+# ----------------------------------------------------------------------------
+image_augmentation:
+  target_size: [512, 512]
+  
+  # Horizontal flip
+  hflip:
+    enabled: true
+  
+  # Vertical flip
+  vflip:
+    enabled: true
+  
+  # Random crop and resize
+  crop:
+    enabled: true
+    min_ratio: 0.70      # More aggressive = more zoom
+    max_ratio: 0.90
+  
+  # Color jitter (1.0 = no change)
+  color:
+    enabled: true
+    brightness_range: [0.7, 1.3]
+    contrast_range: [0.7, 1.3]
+    saturation_range: [0.6, 1.4]
+  
+  # Rotation options
+  rotation:
+    enabled: true
+    slight:
+      enabled: true
+      min_angle: -25
+      max_angle: 25
+    rotate_90:
+      enabled: true
+    rotate_180:
+      enabled: true
+    rotate_270:
+      enabled: true
+    fill_color: [128, 128, 128]
+  
+  # Gaussian noise
+  noise:
+    enabled: true
+    std_min: 15
+    std_max: 35
+  
+  # Gaussian blur
+  blur:
+    enabled: true
+    radius_min: 0.5
+    radius_max: 2.0
+
+# ----------------------------------------------------------------------------
+# TEXT AUGMENTATION
+# Rule-based augmentations that preserve semantic meaning
+# ----------------------------------------------------------------------------
+text_augmentation:
+  # How many augmented captions to generate per original
+  augmentations_per_caption: 2
+  
+  # Maximum caption length (chars) - longer results are discarded
+  max_caption_length: 150
+  
+  # ----------------------------------------------------------------------------
+  # OPERATION 1: Synonym Replacement
+  # Replace words with food-safe synonyms
+  # ----------------------------------------------------------------------------
+  synonym:
+    enabled: true
+    probability: 0.4           # Chance of applying this operation
+    max_replacements: 1        # Max words to replace per caption
+    
+    # Safe word replacements (word -> list of synonyms)
+    # Only food/cooking-related adjectives and connectors
+    dictionary:
+      # Taste/texture adjectives
+      delicious: ["tasty", "flavorful", "savory"]
+      tasty: ["delicious", "flavorful"]
+      yummy: ["delicious", "tasty"]
+      crispy: ["crunchy", "crisp"]
+      crunchy: ["crispy", "crisp"]
+      creamy: ["smooth", "velvety", "rich"]
+      spicy: ["hot", "zesty", "fiery"]
+      sweet: ["sugary", "honeyed"]
+      savory: ["salty", "umami"]
+      fresh: ["crisp", "garden-fresh"]
+      
+      # Cooking method adjectives
+      grilled: ["charred", "barbecued", "char-grilled"]
+      roasted: ["baked", "oven-roasted"]
+      fried: ["pan-fried", "sautéed", "crispy"]
+      baked: ["oven-baked", "roasted"]
+      steamed: ["poached"]
+      
+      # Difficulty/style adjectives
+      easy: ["simple", "quick", "effortless"]
+      simple: ["easy", "basic", "straightforward"]
+      quick: ["fast", "speedy", "rapid"]
+      classic: ["traditional", "timeless"]
+      homemade: ["home-style", "house-made"]
+      best: ["perfect", "ultimate", "finest"]
+      favorite: ["beloved", "popular"]
+      
+      # Connectors
+      "&": ["and"]
+      "and": ["&"]
+      "with": ["w/", "featuring"]
+      "w/": ["with"]
+
+  # ----------------------------------------------------------------------------
+  # OPERATION 2: Add Prefix
+  # Prepend a descriptive word/phrase to the caption
+  # ----------------------------------------------------------------------------
+  add_prefix:
+    enabled: true
+    probability: 0.3
+    
+    # Safe prefixes that don't change the dish identity
+    prefixes:
+      - "Homemade"
+      - "Classic"
+      - "Easy"
+      - "Simple"
+      - "Quick"
+      - "Delicious"
+      - "Perfect"
+      - "Traditional"
+      - "Authentic"
+      - "Best"
+      - "Amazing"
+      - "Tasty"
+
+  # ----------------------------------------------------------------------------
+  # OPERATION 3: Remove Prefix
+  # Remove existing descriptive prefix to create shorter variant
+  # ----------------------------------------------------------------------------
+  remove_prefix:
+    enabled: true
+    probability: 0.2
+    
+    # Prefixes that can be safely removed
+    removable_prefixes:
+      - "Homemade"
+      - "Classic"
+      - "Easy"
+      - "Simple"
+      - "Quick"
+      - "Delicious"
+      - "Perfect"
+      - "Traditional"
+      - "Authentic"
+      - "Best"
+      - "Amazing"
+      - "My"
+      - "Mom's"
+      - "Grandma's"
+      - "The Best"
+      - "Best Ever"
+      - "World's Best"
+
+  # ----------------------------------------------------------------------------
+  # OPERATION 4: Title Reordering
+  # Reorder simple "Ingredient + Dish" patterns
+  # e.g., "Banana French Toast" → "French Toast with Banana"
+  # ----------------------------------------------------------------------------
+  reorder:
+    enabled: true
+    probability: 0.3
+    
+    # Common dish types that can be moved to the front
+    # Pattern: "{ingredient} {dish}" → "{dish} with {ingredient}"
+    dish_keywords:
+      - "Toast"
+      - "Pancakes"
+      - "Waffles"
+      - "Muffins"
+      - "Bread"
+      - "Cake"
+      - "Cookies"
+      - "Pie"
+      - "Soup"
+      - "Salad"
+      - "Pasta"
+      - "Rice"
+      - "Chicken"
+      - "Steak"
+      - "Sandwich"
+      - "Burger"
+      - "Pizza"
+      - "Tacos"
+      - "Wings"
+      - "Rolls"
+      - "Casserole"
+      - "Stew"
+      - "Curry"
+      - "Noodles"
+      - "Omelette"
+      - "Eggs"
+    
+    # Connector word for reordering
+    connector: "with"
+
+  # ----------------------------------------------------------------------------
+  # OPERATION 5: Case Normalization
+  # Normalize casing for consistency
+  # ----------------------------------------------------------------------------
+  case_normalize:
+    enabled: true
+    probability: 0.2
+    
+    # Options: "title" (Title Case), "lower" (lowercase), "upper" (UPPERCASE)
+    target_case: "title"
+
+  # ----------------------------------------------------------------------------
+  # OPERATION 6: Add Suffix
+  # Append a recipe-style suffix
+  # ----------------------------------------------------------------------------
+  add_suffix:
+    enabled: true
+    probability: 0.2
+    
+    suffixes:
+      - "Recipe"
+      - "- Easy Recipe"
+      - "- Homemade"
+      - "(Quick & Easy)"
+
+  # ----------------------------------------------------------------------------
+  # OPERATION 7: Simplify
+  # Remove parenthetical content and numbering
+  # e.g., "Chicken Parmesan (Baked)" → "Chicken Parmesan"
+  # e.g., "Chocolate Cake II" → "Chocolate Cake"
+  # ----------------------------------------------------------------------------
+  simplify:
+    enabled: true
+    probability: 0.25
