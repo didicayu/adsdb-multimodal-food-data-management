@@ -21,6 +21,22 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "utils"))
 import config
 
 PipelineConfig = config.PipelineConfig
+validate_config = config.validate_config
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    # Try to load from app/.env first, then from root .env
+    env_paths = [
+        os.path.join(os.path.dirname(__file__), ".env"),
+        os.path.join(os.path.dirname(__file__), "..", ".env"),
+    ]
+    for env_path in env_paths:
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+            break
+except ImportError:
+    pass  # python-dotenv not available, will use system environment variables
 
 app = typer.Typer(help="Data Pipeline CLI")
 console = Console()
@@ -163,7 +179,7 @@ def validate():
         # Validate configuration
         issues = []
         try:
-            issues = config.validate_config(PipelineConfig())
+            issues = validate_config(config)
         except Exception as e:
             console.print(f"[red]✗[/red] Configuration validation failed: {e}")
             return
@@ -338,13 +354,18 @@ def init():
         console.print("[bold blue]Initializing pipeline environment...[/bold blue]")
 
         # Check if .env file exists
-        env_file = Path(".env")
+        env_file_root = Path(".env")
+        env_file_app = Path("app/.env")
         env_sample = Path("app/.env.sample")
 
-        if not env_file.exists() and env_sample.exists():
+        if not env_file_root.exists() and not env_file_app.exists() and env_sample.exists():
             console.print(
-                f"[yellow]⚠[/yellow] .env file not found. Please copy {env_sample} to .env and configure it."
+                f"[yellow]⚠[/yellow] .env file not found. Please copy {env_sample} to app/.env and configure it."
             )
+        elif env_file_app.exists():
+            console.print(f"[green]✓[/green] .env file found: {env_file_app}")
+        elif env_file_root.exists():
+            console.print(f"[green]✓[/green] .env file found: {env_file_root}")
 
         # Check if config file exists
         config_file = Path("app/pipeline.yaml")
@@ -364,7 +385,7 @@ def init():
 
         console.print("\n[bold green]✓ Environment initialization completed![/bold green]")
         console.print("\nNext steps:")
-        console.print("1. Copy app/.env.sample to .env and configure it")
+        console.print("1. Copy app/.env.sample to app/.env and configure it")
         console.print("2. Run 'python -m app.cli validate' to check your setup")
         console.print("3. Run 'python -m app.cli run' to start the pipeline")
 
