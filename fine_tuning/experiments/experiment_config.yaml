@@ -4,41 +4,40 @@
 # ============================================================================
 
 # ----------------------------------------------------------------------------
+# MINIO CONFIGURATION
+# ----------------------------------------------------------------------------
+minio:
+  bucket: "fine-tuning-zone"
+  prefixes:
+    datasets: "datasets"
+    images: "images"
+    experiments: "experiments"
+
+# ----------------------------------------------------------------------------
 # DATASET CONFIGURATION
 # ----------------------------------------------------------------------------
 dataset:
-  # Input dataset (augmented with positives and negatives)
-  input_key: "datasets/train_pairs_augmented_with_negatives.csv"
+  # Test manifest (already split from baseline)
+  test_manifest_key: "datasets/test_pairs_positive.csv"
   
-  # Filter: only use positive pairs (label=1) for training/evaluation
+  # Training dataset (for LoRA fine-tuning)
+  train_manifest_key: "datasets/train_pairs_augmented_with_negatives.csv"
+  
+  # Filter: only use positive pairs (label=1) for training
   filter_positive_only: true
-  
-  # Train/test split
-  test_size: 0.2  # 80% train, 20% test
-  random_seed: 42
-  split_by_recipe: true  # Critical: split by recipe_id to avoid leakage
-  
-  # Output manifests
-  train_manifest_key: "datasets/train_manifest.csv"
-  test_manifest_key: "datasets/test_manifest.csv"
-  dataset_report_key: "datasets/dataset_report.json"
 
 # ----------------------------------------------------------------------------
 # MODEL CONFIGURATION
 # ----------------------------------------------------------------------------
 model:
   # CLIP model variant (Hugging Face model IDs)
-  # Options: 
-  #   "openai/clip-vit-base-patch32" (ViT-B/32)
-  #   "openai/clip-vit-base-patch16" (ViT-B/16)
-  #   "openai/clip-vit-large-patch14" (ViT-L/14)
-  #   "openai/clip-rn50", "openai/clip-rn101", etc.
   name: "openai/clip-vit-base-patch32"
   
-  # Device
-  device: "cuda"  # "cuda" or "cpu"
+  # Device selection: "cuda" or "cpu" (auto-detected if not specified)
+  # Leave empty/null to auto-detect
+  device: null
   
-  # Batch size for embedding generation
+  # Batch size for embedding generation (evaluation)
   batch_size: 32
 
 # ----------------------------------------------------------------------------
@@ -51,6 +50,9 @@ evaluation:
   # Compute MRR (Mean Reciprocal Rank)
   compute_mrr: true
   
+  # Compute median rank (first hit) - optional, defaults to true
+  compute_median_rank: true
+  
   # Number of qualitative examples to generate
   n_examples: 5
 
@@ -60,51 +62,67 @@ evaluation:
 experiment:
   # Experiment method/variant
   # Options: "baseline", "lora", "qlora", "full_finetune"
+  # Change this to "lora" when running the LoRA fine-tuning notebook
   method: "baseline"
   
-  # Run ID will be auto-generated as: {method}_{timestamp}
-  # Format: YYYYMMDD_HHMMSS
-  
-  # Output directory in MinIO
+  # Output directory in MinIO (relative to bucket)
   results_dir: "experiments"
+
+# ----------------------------------------------------------------------------
+# LORA FINE-TUNING CONFIGURATION
+# ----------------------------------------------------------------------------
+lora:
+  # LoRA rank
+  r: 8
   
-  # Results files
-  results_key: "experiments/{method}/results_{method}.json"
-  examples_key: "experiments/{method}/examples_top5.json"
+  # LoRA alpha
+  lora_alpha: 16
+  
+  # LoRA dropout
+  lora_dropout: 0.05
+  
+  # Bias: "none", "all", or "lora_only"
+  bias: "none"
+  
+  # Target modules for LoRA adapters
+  target_modules: ["q_proj", "k_proj", "v_proj", "out_proj"]
+  
+  # LoRA scope: "vision", "text", or "both"
+  scope: "both"
+  
+  # Train only LoRA parameters (freeze base model)
+  train_only_lora: true
+  
+  # Train logit_scale (temperature parameter)
+  train_logit_scale: true
 
 # ----------------------------------------------------------------------------
-# BASELINE SPECIFIC (M0)
+# TRAINING CONFIGURATION
 # ----------------------------------------------------------------------------
-baseline:
-  # No fine-tuning parameters needed
-  # Model is used as-is from pre-trained weights
-  frozen: true
-
-# ----------------------------------------------------------------------------
-# FINE-TUNING PARAMETERS (for future experiments)
-# ----------------------------------------------------------------------------
-# fine_tuning:
-#   # Learning rate
-#   learning_rate: 1e-5
-#   
-#   # Number of epochs
-#   num_epochs: 5
-#   
-#   # Batch size for training
-#   batch_size: 32
-#   
-#   # LoRA parameters (if using LoRA/QLoRA)
-#   lora:
-#     r: 16
-#     alpha: 32
-#     dropout: 0.1
-#     target_modules: ["visual", "transformer"]
-#   
-#   # QLoRA parameters
-#   qlora:
-#     bits: 4
-#     use_double_quant: true
-#     quant_type: "nf4"
+training:
+  # Learning rate
+  learning_rate: 0.0001
+  
+  # Number of epochs
+  num_epochs: 3
+  
+  # Batch size for training
+  batch_size: 2
+  
+  # Gradient accumulation steps (effective batch = batch_size * gradient_accumulation_steps)
+  gradient_accumulation_steps: 16
+  
+  # Warmup steps
+  warmup_steps: 100
+  
+  # Logging steps (log every N optimizer steps)
+  logging_steps: 50
+  
+  # Save steps (save checkpoint every N optimizer steps)
+  save_steps: 500
+  
+  # Random seed for reproducibility
+  random_seed: 42
 
 # ----------------------------------------------------------------------------
 # REPRODUCIBILITY
@@ -114,10 +132,3 @@ reproducibility:
   random_seed: 42
   numpy_seed: 42
   torch_seed: 42
-  
-  # Save full configuration with each run
-  save_config: true
-  
-  # Track library versions
-  track_versions: true
-
