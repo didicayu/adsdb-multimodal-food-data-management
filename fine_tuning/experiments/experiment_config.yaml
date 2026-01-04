@@ -125,6 +125,26 @@ training:
   random_seed: 42
 
 # ----------------------------------------------------------------------------
+# QLORA FINE-TUNING CONFIGURATION
+# ----------------------------------------------------------------------------
+qlora:
+  # Quantization settings (bitsandbytes)
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"           # Normalized Float 4 (recommended)
+  bnb_4bit_compute_dtype: "float16"    # Compute dtype for quantized weights
+  bnb_4bit_use_double_quant: true      # Double quantization for extra memory savings
+  
+  # LoRA settings (same as lora section for fair comparison)
+  r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules: ["q_proj", "k_proj", "v_proj", "out_proj"]
+  scope: "both"
+  train_only_lora: true
+  train_logit_scale: true
+
+# ----------------------------------------------------------------------------
 # REPRODUCIBILITY
 # ----------------------------------------------------------------------------
 reproducibility:

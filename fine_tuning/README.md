@@ -20,7 +20,8 @@ This fine-tuning pipeline is designed to improve CLIP's performance on food reci
 
 ### Key Features
 
-- **Efficient Fine-Tuning**: LoRA adapters reduce trainable parameters by ~99% compared to full fine-tuning
+- **Efficient Fine-Tuning**: LoRA and QLoRA adapters reduce trainable parameters by ~99% compared to full fine-tuning
+- **QLoRA Support**: 4-bit quantized LoRA for even more memory-efficient training on consumer GPUs
 - **Data Augmentation**: Generative augmentation techniques for both images and text
 - **Comprehensive Evaluation**: Retrieval-based metrics (Recall@K, MRR) with recipe-level evaluation
 - **Reproducible Experiments**: Fixed random seeds and configuration files for all experiments
@@ -55,9 +56,24 @@ We employ **LoRA (Low-Rank Adaptation)** for efficient fine-tuning:
   - **Fast Training**: Reduced computational cost enables rapid experimentation
   - **Modularity**: LoRA adapters can be saved/loaded independently
 
+### Fine-Tuning Technique: QLoRA
+
+We also implement **QLoRA (Quantized LoRA)** for even more efficient fine-tuning:
+
+- **Rationale**: QLoRA combines 4-bit quantization with LoRA, enabling fine-tuning on consumer GPUs with limited VRAM
+- **Quantization Configuration**:
+  - Quantization type: NF4 (Normalized Float 4)
+  - Compute dtype: float16
+  - Double quantization: Enabled for additional memory savings
+- **Benefits**:
+  - **~4x Memory Reduction**: Base model weights stored in 4-bit format
+  - **Same LoRA Config**: Uses identical LoRA parameters for fair comparison
+  - **Consumer GPU Compatible**: Enables training on 8GB VRAM GPUs
+  - **Comparable Performance**: Expected similar accuracy to full-precision LoRA
+
 ### Expected Impact
 
-Fine-tuning with LoRA is expected to:
+Fine-tuning with LoRA/QLoRA is expected to:
 - **Improve Alignment**: Better semantic alignment between food images and recipe descriptions
 - **Domain Adaptation**: Adapt CLIP's general knowledge to food-specific terminology and visual features
 - **Retrieval Performance**: Increase Recall@K metrics for text→image and image→text retrieval tasks
@@ -135,14 +151,13 @@ Rule-based transformations that preserve semantic meaning:
 - **Suffix Addition**: Append recipe-style suffixes ("Recipe", "- Easy Recipe")
 - **Simplification**: Remove parenthetical content and numbering
 
-#### Negative Pair Generation
+#### Negative Pair Generation (optional)
 
-To improve contrastive learning:
-- Mismatch images and captions from different recipes
-- Generate negative pairs (label=0) alongside positive pairs (label=1)
-- Ratio: 1 negative per positive pair
+CLIP already constructs in-batch negatives, so explicit negatives are optional. If you want to explore hard negatives, you can mismatch images and captions from different recipes:
+- Control the ratio via `NEGATIVES_PER_POSITIVE` in `augmentation/augment_dataset.ipynb` (set to `0` to skip)
+- Training notebooks filter to `label == 1` by default (`experiments/experiment_config.yaml`), so hard negatives are only used if you opt in
 
-**Output**: `train_pairs_augmented_with_negatives.csv` with augmented pairs and labels.
+**Output**: `train_pairs_augmented_with_negatives.csv` (may contain only positives when negatives are disabled).
 
 ### 3.3 Zone Architecture
 
@@ -152,7 +167,7 @@ We extend the ADSDB zone architecture with a **Fine-Tuning Zone**:
 fine-tuning-zone/
 ├── datasets/
 │   ├── train_pairs_positive.csv
-│   ├── train_pairs_augmented_with_negatives.csv
+│   ├── train_pairs_augmented_with_negatives.csv   # optional hard negatives
 │   └── test_pairs_positive.csv
 ├── images/
 │   └── [original images from trusted zone]
@@ -162,12 +177,19 @@ fine-tuning-zone/
     ├── baseline/
     │   ├── results_baseline.json
     │   └── examples_top5.json
-    └── lora/
+    ├── lora/
+    │   └── run_{run_id}/
+    │       ├── config.yaml
+    │       ├── adapters/
+    │       ├── training_logs.json
+    │       ├── results_lora.json
+    │       └── examples_top5.json
+    └── qlora/
         └── run_{run_id}/
             ├── config.yaml
             ├── adapters/
             ├── training_logs.json
-            ├── results_lora.json
+            ├── results_qlora.json
             └── examples_top5.json
 ```
 
@@ -183,9 +205,11 @@ fine-tuning-zone/
 
 ### 4.1 Experimental Design
 
-#### Research Hypothesis
+#### Research Hypotheses
 
 **H1**: Fine-tuning CLIP with LoRA on domain-specific food recipe data improves text↔image alignment compared to the baseline CLIP model, as measured by retrieval metrics (Recall@K, MRR).
+
+**H2**: QLoRA achieves comparable performance to LoRA while using significantly less memory, enabling fine-tuning on resource-constrained hardware.
 
 #### Controlled Variables
 
@@ -201,10 +225,18 @@ We evaluate the following model variants:
    - LoRA adapters applied to vision and text encoders
    - Trained on augmented training dataset
 
+3. **M2: QLoRA Fine-Tuned CLIP** (`03_qlora_finetune_clip.ipynb`)
+   - Same base model as M0, quantized to 4-bit (NF4)
+   - LoRA adapters with same configuration as M1
+   - Trained on same augmented training dataset
+   - Requires CUDA GPU for 4-bit quantization
+
 #### Controlled Conditions
 
 To ensure fair comparison:
-- **Same Test Set**: Both models evaluated on identical `test_pairs_positive.csv`
+- **Same Test Set**: All models evaluated on identical `test_pairs_positive.csv`
+- **Same Training Data**: M1 and M2 trained on identical `train_pairs_augmented_with_negatives.csv`
+- **Same LoRA Config**: M1 and M2 use identical LoRA parameters (r=8, alpha=16)
 - **Same Evaluation Protocol**: Recipe-level retrieval (multiple valid matches per query)
 - **Same Metrics**: Recall@1, Recall@5, Recall@10, MRR, MedianRank
 - **Same Hardware**: Consistent device and batch size settings
@@ -429,9 +461,38 @@ The qualitative examples (`examples_top5.json`) reveal several patterns:
 
 1. **Larger Dataset**: Increase training data size through additional augmentation or data collection
 2. **Hyperparameter Tuning**: Experiment with different LoRA ranks, learning rates, and training schedules
-3. **QLoRA**: Test quantized LoRA for even more efficient training
-4. **Different Architectures**: Compare LoRA with other parameter-efficient methods (adapters, prompt tuning)
-5. **Longer Training**: Train for more epochs to see if improvements continue
+3. **Different Architectures**: Compare LoRA with other parameter-efficient methods (adapters, prompt tuning)
+4. **Longer Training**: Train for more epochs to see if improvements continue
+
+### 5.6 QLoRA Results (M2)
+
+QLoRA experiments are implemented in `03_qlora_finetune_clip.ipynb`. The notebook:
+
+1. **Quantizes** the base CLIP model to 4-bit using bitsandbytes NF4 format
+2. **Applies** identical LoRA configuration as M1 for fair comparison
+3. **Trains** on the same augmented dataset
+4. **Evaluates** using the same protocol as M0 and M1
+5. **Compares** results across all three variants (M0, M1, M2)
+
+#### Expected Results
+
+Based on QLoRA literature, we expect:
+
+| Aspect | Expected Outcome |
+|--------|------------------|
+| **Retrieval Performance** | Comparable to M1 (LoRA), within 1-2% |
+| **Memory Usage** | ~4x reduction vs. M1 during training |
+| **Training Speed** | Similar or slightly slower due to dequantization overhead |
+| **Trainable Parameters** | Same as M1 (~983K, 0.65% of total) |
+
+#### Hypothesis H2 Validation
+
+To validate H2, we compare:
+- **Performance parity**: QLoRA metrics within acceptable range of LoRA
+- **Memory reduction**: Significant VRAM savings during training
+- **Practical benefit**: Enables training on consumer GPUs (e.g., 8GB VRAM)
+
+**Note**: Actual QLoRA results will be populated after running the notebook on a CUDA-capable GPU. The notebook includes a fallback mode for CPU demonstration, but true quantization benefits require CUDA.
 
 ---
 
@@ -450,7 +511,8 @@ fine_tuning/
 └── experiments/
     ├── experiment_config.yaml         # Fine-tuning and evaluation config
     ├── 01_baseline_eval_clip.ipynb    # Baseline evaluation (M0)
-    └── 02_lora_finetune_clip.ipynb   # LoRA fine-tuning (M1)
+    ├── 02_lora_finetune_clip.ipynb   # LoRA fine-tuning (M1)
+    └── 03_qlora_finetune_clip.ipynb  # QLoRA fine-tuning (M2)
 ```
 
 ---
@@ -497,7 +559,7 @@ cd fine_tuning/augmentation
 jupyter notebook augment_dataset.ipynb
 ```
 
-**Output**:
+**Output** (hard negatives optional; set `NEGATIVES_PER_POSITIVE=0` to skip):
 - `train_pairs_augmented_with_negatives.csv` in MinIO
 - Augmented images in `fine-tuning-zone/augmented_images/`
 
@@ -523,6 +585,23 @@ jupyter notebook 02_lora_finetune_clip.ipynb
 - LoRA adapters saved to `fine-tuning-zone/experiments/lora/run_{run_id}/adapters/`
 - Evaluation results in `fine-tuning-zone/experiments/lora/run_{run_id}/`
 
+#### Step 5: Fine-Tune with QLoRA (M2)
+
+```bash
+cd fine_tuning/experiments
+# Edit experiment_config.yaml: set method: "qlora"
+jupyter notebook 03_qlora_finetune_clip.ipynb
+```
+
+**Requirements**:
+- CUDA-capable GPU (required for 4-bit quantization)
+- bitsandbytes library: `pip install bitsandbytes`
+
+**Output**: 
+- QLoRA adapters saved to `fine-tuning-zone/experiments/qlora/run_{run_id}/adapters/`
+- Evaluation results in `fine-tuning-zone/experiments/qlora/run_{run_id}/`
+- Comparison table with M0 and M1 results
+
 ### Configuration
 
 All hyperparameters are controlled via YAML files:
@@ -543,10 +622,12 @@ All hyperparameters are controlled via YAML files:
 
 ## Notes
 
-- **GPU Requirements**: LoRA fine-tuning requires GPU (CUDA) for reasonable training time
+- **GPU Requirements**: 
+  - LoRA fine-tuning works on CPU but benefits from GPU (CUDA) for faster training
+  - QLoRA **requires** CUDA for 4-bit quantization (bitsandbytes dependency)
 - **Storage**: Ensure sufficient MinIO storage for datasets and experiment results
 - **Evaluation Protocol**: Recipe-level evaluation means multiple valid matches per query
-- **Future Work**: Consider QLoRA (quantized LoRA) for even more efficient training
+- **QLoRA Dependencies**: Install bitsandbytes with `pip install bitsandbytes`
+- **Memory Savings**: QLoRA reduces model memory by ~4x compared to FP32 LoRA
 
 ---
-
