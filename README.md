@@ -625,6 +625,48 @@ python app/cli.py run --config custom_pipeline.yaml
 -   `--verbose`: Enable verbose logging
 -   `--config`: Specify configuration file path
 
+### Running the fine-tuning part
+Part 2: fine-tuning is not included in the orchestration pipeline, so the notebooks have to be run separately. Before the fine-tuning notebooks can be run the trusted zone needs to be populated, to achieve that run: 
+
+```bash
+python app/cli.py run --stages temporal_landing,persistent_landing,formatted_documents,formatted_images,trusted_images,trusted_documents
+```
+
+Then to run the notebooks, follow these steps. Every step from here starts from the base of the project directory.
+
+```bash
+#Prepare training and testing dataset
+cd fine_tuning/training_data
+jupyter notebook prepare_dataset.ipynb
+
+#Augment the training data
+cd fine_tuning/augmentation
+jupyter notebook augment_dataset.ipynb
+
+#Evaluate the Baseline CLIP
+#In this step it is necessary to manually edit the experiment\_config.yaml file, specifically line 66. Method needs to be set to "baseline". Then run these commands in terminal:
+cd fine_tuning/experiments
+jupyter notebook 01_baseline_eval_clip.ipynb
+
+#Fine-Tune with LoRA
+#In this step it is necessary to manually edit the experiment\_config.yaml file, specifically line 66. Method needs to be set to "lora". Then run these commands in terminal:
+cd fine_tuning/experiments
+jupyter notebook 02_lora_finetune_clip.ipynb
+
+#Fine-Tune with QLoRA
+#In this step it is necessary to manually edit the experiment\_config.yaml file, specifically line 66. Method needs to be set to "qlora". Then run these commands in terminal:
+cd fine_tuning/experiments
+jupyter notebook 03_qlora_finetune_clip.ipynb
+
+#Run results analysis
+cd fine_tuning/experiments
+jupyter notebook 04_results_analysis.ipynb
+
+```
+
+
+
+
 ## ⚙️ Configuration
 
 ### Pipeline Configuration (pipeline.yaml)
